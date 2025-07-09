@@ -1,0 +1,11 @@
+# Core scientific stack
+tensorflow              # Use official build (AVX-optimized)
+tensorflow-datasets
+numpy
+matplotlib
+
+# Optional: if you need scikit-learn for distance checks, clustering, etc.
+scikit-learn
+
+# Recommended for clean builds
+wheel
