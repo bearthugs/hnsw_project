@@ -1,58 +1,41 @@
 #include "faiss_wrapper.h"
-#include <faiss/IndexFlat.h>
 #include <faiss/IndexHNSW.h>
-#include <faiss/IndexIVF.h>
-#include <faiss/IndexIVFPQ.h>
-#include <faiss/IndexIVFSearch.h>
-#include <faiss/Index.h>
+#include <faiss/IndexFlat.h>
+#include <faiss/IndexIVFFlat.h>
+#include <faiss/index_io.h>
+#include <faiss/MetaIndexes.h>
+#include <vector>
+#include <iostream>
 
-using namespace faiss;
+struct FaissIndexWrapper {
+    faiss::IndexHNSWFlat* index;
+};
 
 extern "C" {
 
-FaissIndex create_flat_index(int dim) {
-    return (FaissIndex)(new IndexFlatL2(dim));
+FaissIndexHandle faiss_create_hnsw_index(int d) {
+    auto wrapper = new FaissIndexWrapper();
+    // Use IndexHNSWFlat with L2 metric
+    wrapper->index = new faiss::IndexHNSWFlat(d, 32);  // 32 neighbors for HNSW graph, tune as needed
+    wrapper->index->hnsw.efConstruction = 40;
+    wrapper->index->hnsw.efSearch = 16;
+    return (FaissIndexHandle)wrapper;
 }
 
-FaissIndex create_hnsw_index(int dim, int M) {
-    return (FaissIndex)(new IndexHNSWFlat(dim, M));
+void faiss_add_vectors(FaissIndexHandle handle, int n, float* vectors) {
+    FaissIndexWrapper* wrapper = (FaissIndexWrapper*)handle;
+    wrapper->index->add(n, vectors);
 }
 
-FaissIndex create_ivf_flat_index(int dim, int nlist) {
-    IndexFlatL2* quantizer = new IndexFlatL2(dim);
-    IndexIVFFlat* ivf = new IndexIVFFlat(quantizer, dim, nlist, METRIC_L2);
-    return (FaissIndex)ivf;
+void faiss_search(FaissIndexHandle handle, int nq, float* queries, int k, float* distances, int64_t* labels) {
+    FaissIndexWrapper* wrapper = (FaissIndexWrapper*)handle;
+    wrapper->index->search(nq, queries, k, distances, labels);
 }
 
-FaissIndex create_ivf_hnsw_index(int dim, int nlist, int M) {
-    IndexHNSWFlat* quantizer = new IndexHNSWFlat(dim, M);
-    IndexIVFFlat* ivf = new IndexIVFFlat(quantizer, dim, nlist, METRIC_L2);
-    return (FaissIndex)ivf;
+void faiss_free_index(FaissIndexHandle handle) {
+    FaissIndexWrapper* wrapper = (FaissIndexWrapper*)handle;
+    delete wrapper->index;
+    delete wrapper;
 }
 
-FaissIndex create_ivf_pq_index(int dim, int nlist, int m, int nbits) {
-    IndexFlatL2* quantizer = new IndexFlatL2(dim);
-    IndexIVFPQ* ivfpq = new IndexIVFPQ(quantizer, dim, nlist, m, nbits);
-    return (FaissIndex)ivfpq;
-}
-
-void train_ivf_index(FaissIndex index, float* data, int n) {
-    IndexIVF* ivf = dynamic_cast<IndexIVF*>((Index*)index);
-    if (ivf) {
-        ivf->train(n, data);
-    }
-}
-
-void add_vectors(FaissIndex index, float* data, int n) {
-    ((Index*)index)->add(n, data);
-}
-
-void search_vectors(FaissIndex index, float* queries, int n_query, int k, int* labels, float* distances) {
-    ((Index*)index)->search(n_query, queries, k, distances, labels);
-}
-
-void free_faiss_index(FaissIndex index) {
-    delete (Index*)index;
-}
-
-}
+} // extern "C"
