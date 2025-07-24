@@ -27,7 +27,7 @@ float* load_fvecs(const char* filename, int* out_num_vectors, int* out_dim) {
 
     // Get file size
     fseek(f, 0, SEEK_END);
-    long file_size = ftell(f);
+    long file_size = ftell(f); // Check ftell
     fseek(f, 0, SEEK_SET);
 
     // Each vector = 4 bytes (dim) + dim * 4 bytes (floats)
@@ -35,8 +35,8 @@ float* load_fvecs(const char* filename, int* out_num_vectors, int* out_dim) {
     int num_vectors = (int)(file_size / vec_size);
 
     // Allocate memory for all vectors (just floats, no dimension)
-    float* data = (float*)malloc(num_vectors * dim * sizeof(float));
-    if (!data) {
+    float* data_row_major = (float*)malloc(num_vectors * dim * sizeof(float)); // Do the same but for column
+    if (!data_row_major) {
         perror("malloc failed");
         fclose(f);
         return NULL;
@@ -46,26 +46,28 @@ float* load_fvecs(const char* filename, int* out_num_vectors, int* out_dim) {
         int d = 0;
         if (fread(&d, sizeof(int), 1, f) != 1) {
             fprintf(stderr, "Failed to read dim for vector %d\n", i);
-            free(data);
+            free(data_row_major);
             fclose(f);
             return NULL;
         }
         if (d != dim) {
             fprintf(stderr, "Dimension mismatch at vector %d: expected %d got %d\n", i, dim, d);
-            free(data);
+            free(data_row_major);
             fclose(f);
             return NULL;
         }
-        if (fread(data + i*dim, sizeof(float), dim, f) != (size_t)dim) {
+        if (fread(data_row_major + i*dim, sizeof(float), dim, f) != (size_t)dim) {
             fprintf(stderr, "Failed to read vector data for vector %d\n", i);
-            free(data);
+            free(data_row_major);
             fclose(f);
             return NULL;
         }
     }
 
+    // Create column major
+
     fclose(f);
     *out_num_vectors = num_vectors;
     *out_dim = dim;
-    return data;
+    return data_row_major; // data_column_major
 }
